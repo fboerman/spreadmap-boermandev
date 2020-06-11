@@ -4,7 +4,7 @@ from logging.config import dictConfig
 import os
 from secrets import SECRET_KEY_FLASK
 import pandas as pd
-from util import import_RIVM_csv
+from util import import_RIVM_csv, import_brazil_csv
 from colour import Color
 from math import ceil, floor
 
@@ -35,12 +35,26 @@ def index_nl():
     return render_template('base_map.html',
                            geojson="gemeente_2019.geojson",
                            centerpoint="[52.2, 5.387]",
+                           zoom_level="8",
                            propname="statnaam",
+                           data_prefix="gemeenten",
                            title="Corona virus verspreiding over Nederland",
                            helptext="Hover over een gemeente")
 
 
-def get_selected_df(fname):
+@app.route("/BRA/")
+def index_bra():
+    return render_template('base_map.html',
+                           geojson="states_bra.geojson",
+                           centerpoint="[-11.39, -53.85]",
+                           zoom_level="5",
+                           propname="name",
+                           data_prefix="states",
+                           title="Corona virus spread over Brasil",
+                           helptext="Hover over a state")
+
+
+def get_selected_df_nl(fname):
     df = import_RIVM_csv(fname)
     df.set_index('Gemeente', inplace=True)
     df_BevAant = pd.read_csv('base/gemeente_2019_mensen.csv', delimiter=';')
@@ -57,11 +71,12 @@ def get_selected_df(fname):
     white = Color("gray")
     colors = list(white.range_to(Color("darkred"), NUMBIN))
     colors = [c.hex for c in colors]
-    BINSIZE = ceil(df['Aantal'].max() / NUMBIN)
+    BINSIZE_Aantal = ceil(df['Aantal'].max() / NUMBIN)
+    BINSIZE_AantalNorm = ceil(df['Aantal'].max() / NUMBIN)
 
     df2 = df.apply(lambda row: pd.Series({
-        'ColorAantal': colors[floor(row['Aantal']/BINSIZE)],
-        'ColorAantalNorm': colors[floor(row['AantalNorm'] / BINSIZE)],
+        'ColorAantal': colors[floor(row['Aantal']/BINSIZE_Aantal)],
+        'ColorAantalNorm': colors[floor(row['AantalNorm'] / BINSIZE_AantalNorm)],
     }), axis=1)
 
     df = pd.merge(df, df2, left_index=True, right_index=True)
@@ -76,7 +91,28 @@ def get_selected_df(fname):
     return df
 
 
+def get_selected_df_bra(date):
+    df = import_brazil_csv(date)
+
+    NUMBIN = 25
+    white = Color("gray")
+    colors = list(white.range_to(Color("darkred"), NUMBIN))
+    colors = [c.hex for c in colors]
+
+    for c in ['cases_cum', 'deaths_cum', 'cases_cum_norm', 'deaths_cum_norm']:
+        BINSIZE = ceil(df[c].max() / NUMBIN)
+        df['color_'+c] = df.apply(lambda row: colors[floor(row[c]/BINSIZE)], axis=1)
+
+    return df
+
+
 @app.route('/NL/data/gemeenten_<date>.json')
-def geojson_nl(date):
-    df = get_selected_df(date+".csv")
+def json_nl(date):
+    df = get_selected_df_nl(date + ".csv")
+    return jsonify(df.to_dict('index'))
+
+
+@app.route('/BRA/data/states_<date>.json')
+def json_bra(date):
+    df = get_selected_df_bra(date)
     return jsonify(df.to_dict('index'))

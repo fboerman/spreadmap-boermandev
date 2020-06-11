@@ -38,3 +38,13 @@ def import_RIVM_csv(fname):
     # df = df.T
     # df.index = [d]
     return df
+
+
+def import_brazil_csv(dname):
+    d = datetime.strptime(dname, '%d%m%Y')
+    df = pd.read_csv('brazil-states.csv', delimiter=';', parse_dates=['time'])
+    df = df[df['time'] == d]
+    df.set_index('state', inplace=True)
+    df.drop('time', axis=1, inplace=True)
+
+    return df

@@ -3,3 +3,4 @@ RIVM_timeseries
 secrets.py
 .idea
 __pycache__
+brazil-states.csv
