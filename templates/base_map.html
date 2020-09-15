@@ -53,9 +53,9 @@
 	window.maptype = GetUrlParameter("type");
 	if(timestamp != undefined) {
 	var date = new Date(parseInt(timestamp))
-	var dname = ('0' + date.getDate()).slice(-2) + ''
-             + ('0' + (date.getMonth()+1)).slice(-2) + ''
-             + date.getFullYear();
+	var dname = date.getFullYear() +
+            ('0' + (date.getMonth()+1)).slice(-2) + '' +
+            ('0' + date.getDate()).slice(-2) ;
 	} else {
 	var dname = 'invalid';
 	}
@@ -98,8 +98,14 @@
 	$.getJSON("data/{{ data_prefix }}_" + dname + ".json", function(data){
 	    window.mapdata = data;
         window.style = function style(feature) {
+            var color = undefined;
+            if (feature.properties.{{ propname }} in window.mapdata) {
+                color = window.mapdata[feature.properties.{{ propname }}]["color_"+window.maptype];
+            } else {
+                console.log(feature.properties.{{ propname }});
+            }
             return {
-            fillColor: window.mapdata[feature.properties.{{ propname }}]["color_"+window.maptype],
+            fillColor: color,
             weight: 2,
             opacity: 1,
             color: 'white',

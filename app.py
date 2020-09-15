@@ -1,4 +1,4 @@
-from flask import Flask, make_response, jsonify, render_template
+from flask import Flask, make_response, jsonify, render_template, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
 from logging.config import dictConfig
 import os
@@ -53,40 +53,45 @@ def index_bra():
                            title="Corona virus spread over Brasil",
                            helptext="Hover over a state")
 
+ #Totaal_Absoluut, Totaal_inc100000
 
-def get_selected_df_nl(fname):
-    df = import_RIVM_csv(fname)
-    df.set_index('Gemeente', inplace=True)
-    df_BevAant = pd.read_csv('base/gemeente_2019_mensen.csv', delimiter=';')
-    df_BevAant.set_index('Gemeente', inplace=True)
-
-    df.index = df.index.str.strip()
-    df_BevAant.index = df_BevAant.index.str.strip()
-    df = pd.merge(df, df_BevAant, left_index=True, right_index=True)
-    df.index = ["'s-Gravenhage" if c == 's-Gravenhage' else c for c in df.index]
-    df['AantalNorm'] = round(df['Aantal'] / (df['BevAant'] / 100000), 1)
-    df.drop('BevAant', inplace=True, axis=1)
+def get_selected_df_nl(dname):
+    df_all, df = import_RIVM_csv(dname)
+    if df_all is None:
+        return None
 
     NUMBIN = 25
     white = Color("gray")
     colors = list(white.range_to(Color("darkred"), NUMBIN))
     colors = [c.hex for c in colors]
-    BINSIZE_Aantal = ceil(df['Aantal'].max() / NUMBIN)
-    BINSIZE_AantalNorm = ceil(df['Aantal'].max() / NUMBIN)
+    BINSIZE_Aantal = ceil(df_all['Totaal_Absoluut'].max() / NUMBIN)
+    BINSIZE_AantalNorm = ceil(df_all['Totaal_inc100000'].max() / NUMBIN)
 
     df2 = df.apply(lambda row: pd.Series({
-        'ColorAantal': colors[floor(row['Aantal']/BINSIZE_Aantal)],
-        'ColorAantalNorm': colors[floor(row['AantalNorm'] / BINSIZE_AantalNorm)],
+        'color_Totaal_Absoluut': colors[floor(row['Totaal_Absoluut']/BINSIZE_Aantal)],
+        'color_Totaal_inc100000': colors[floor(row['Totaal_inc100000'] / BINSIZE_AantalNorm)],
     }), axis=1)
 
     df = pd.merge(df, df2, left_index=True, right_index=True)
-
+    df.set_index('Gemeente', inplace=True)
     df.rename({
-        'Aantal': 'aantal',
-        'AantalNorm': 'aantal_norm',
-        'ColorAantal': 'color_aantal',
-        'ColorAantalNorm': 'color_aantal_norm'
-    }, inplace=True, axis=1)
+        "'s-Gravenhage (gemeente)": "'s-Gravenhage",
+        "Groningen (gemeente)": "Groningen",
+        "Hengelo (O.)": "Hengelo",
+        "Utrecht (gemeente)": "Utrecht",
+        "Laren (NH.)": "Laren",
+        "Rijswijk (ZH.)": "Rijswijk",
+        "Middelburg (Z.)": "Middelburg",
+        "Beek (L.)": "Beek",
+        "Stein (L.)": "Stein"
+    }, inplace=True)
+
+    # df.rename({
+    #     'Aantal': 'aantal',
+    #     'AantalNorm': 'aantal_norm',
+    #     'ColorAantal': 'color_aantal',
+    #     'ColorAantalNorm': 'color_aantal_norm'
+    # }, inplace=True, axis=1)
 
     return df
 
@@ -108,7 +113,12 @@ def get_selected_df_bra(date):
 
 @app.route('/NL/data/gemeenten_<date>.json')
 def json_nl(date):
-    df = get_selected_df_nl(date + ".csv")
+    try:
+        df = get_selected_df_nl(date)
+    except ValueError:
+        return abort(400)
+    if df is None:
+        return abort(404)
     return jsonify(df.to_dict('index'))
 
 
