@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 def import_RIVM_csv(dname):
     d = datetime.strptime(dname, '%Y%m%d')
-    df = pd.read_csv('RIVM_timeseries/latest.csv', skip_blank_lines=True, delimiter=';')
+    df = pd.read_csv('RIVM_timeseries/gemeenten_2weken/latest.csv', skip_blank_lines=True, delimiter=';')
     df.drop(['Gemnr', 'Bev_2020', 'van_datum'], axis=1, inplace=True)
     df['tot_datum'] = pd.to_datetime(df['tot_datum'], format='%d-%m-%Y')
     df.rename(columns={'tot_datum': 'time'}, inplace=True)
