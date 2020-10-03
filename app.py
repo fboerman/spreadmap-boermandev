@@ -42,6 +42,18 @@ def index_nl():
                            helptext="Hover over een gemeente")
 
 
+@app.route("/NL/hotspots/")
+def index_nl_hotspots():
+    return render_template('base_map.html',
+                           geojson="gemeente_2019.geojson",
+                           centerpoint="[52.2, 5.387]",
+                           zoom_level="8",
+                           propname="statnaam",
+                           data_prefix="gemeentenhotspots",
+                           title="Corona hotspots (>30 besmettingen per 100.000 afgelopen 2 weken)",
+                           helptext="Hover over een gemeente")
+
+
 @app.route("/BRA/")
 def index_bra():
     return render_template('base_map.html',
@@ -54,6 +66,19 @@ def index_bra():
                            helptext="Hover over a state")
 
  #Totaal_Absoluut, Totaal_inc100000
+
+def fix_names(df):
+    return df.rename({
+        "'s-Gravenhage (gemeente)": "'s-Gravenhage",
+        "Groningen (gemeente)": "Groningen",
+        "Hengelo (O.)": "Hengelo",
+        "Utrecht (gemeente)": "Utrecht",
+        "Laren (NH.)": "Laren",
+        "Rijswijk (ZH.)": "Rijswijk",
+        "Middelburg (Z.)": "Middelburg",
+        "Beek (L.)": "Beek",
+        "Stein (L.)": "Stein"
+    })
 
 def get_selected_df_nl(dname):
     df_all, df = import_RIVM_csv(dname)
@@ -74,17 +99,7 @@ def get_selected_df_nl(dname):
 
     df = pd.merge(df, df2, left_index=True, right_index=True)
     df.set_index('Gemeente', inplace=True)
-    df.rename({
-        "'s-Gravenhage (gemeente)": "'s-Gravenhage",
-        "Groningen (gemeente)": "Groningen",
-        "Hengelo (O.)": "Hengelo",
-        "Utrecht (gemeente)": "Utrecht",
-        "Laren (NH.)": "Laren",
-        "Rijswijk (ZH.)": "Rijswijk",
-        "Middelburg (Z.)": "Middelburg",
-        "Beek (L.)": "Beek",
-        "Stein (L.)": "Stein"
-    }, inplace=True)
+    df = fix_names(df)
 
     # df.rename({
     #     'Aantal': 'aantal',
@@ -95,6 +110,18 @@ def get_selected_df_nl(dname):
 
     return df
 
+def get_hotspots_df_nl():
+    df_all, df = import_RIVM_csv('max')
+    if df_all is None:
+        return None
+
+    df.loc[:, 'color_hotspot'] = df.apply(
+        lambda row: Color('darkred').get_hex() if row['Totaal_inc100000'] > 30 else Color('white').get_hex()
+        , axis=1)
+    df.set_index('Gemeente', inplace=True)
+    df.rename({'Totaal_inc100000': 'hotspot'}, axis=1, inplace=True)
+    df = fix_names(df)
+    return df
 
 def get_selected_df_bra(date):
     df = import_brazil_csv(date)
@@ -115,6 +142,17 @@ def get_selected_df_bra(date):
 def json_nl(date):
     try:
         df = get_selected_df_nl(date)
+    except ValueError:
+        return abort(400)
+    if df is None:
+        return abort(404)
+    return jsonify(df.to_dict('index'))
+
+
+@app.route('/NL/hotspots/data/gemeentenhotspots_<date>.json')
+def hotspots_json_nl(date):
+    try:
+        df = get_hotspots_df_nl()
     except ValueError:
         return abort(400)
     if df is None:
